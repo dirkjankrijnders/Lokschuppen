@@ -1,0 +1,5 @@
+Door	KEYWORD1
+open	KEYWORD2
+close	KEYWORD2
+set	KEYWORD2
+update	KEYWORD2
