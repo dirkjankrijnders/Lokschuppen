@@ -34,7 +34,7 @@ cache:
 install:
     - pip install -U platformio
 before_script:
-	- git clone https://github.com/thomasfredericks/Bounce2.git lib/Bounce2/
+    - git clone https://github.com/thomasfredericks/Bounce2.git lib/Bounce2/
 script:
     - platformio run
 
