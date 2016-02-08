@@ -1,8 +1,7 @@
 #include <LocoNet.h>
 
 #include "Bounce2.h"
-#warning test
-#include "Door.h""
+#include "Door.h"
 
 #include "Servo.h"
 
@@ -11,6 +10,7 @@
 
 #define annexLightPin 2
 #define shedLightPin 3
+#define servoEnablePin 15
 
 /* 
     Door related stuff 
@@ -23,6 +23,9 @@ Door rightDoor(&rightDoorServo, 20, 160, 1, 250);
 
 bool annexLightsOn = false;
 bool shedLightsOn = false;
+
+void enableServos();
+void disableServos();
 
 void openDoors();
 void closeDoors();
@@ -79,7 +82,8 @@ void setup() {
   digitalWrite( annexLightPin, annexLightsOn);
   pinMode( shedLightPin ,OUTPUT);
   digitalWrite( shedLightPin, shedLightsOn);
-
+  pinMode( servoEnablePin, OUTPUT);
+  disableServos();
   lncv[0] = 1;
   for (int i(1); i < LNCV_COUNT; ++i) {
     lncv[i] = i;
@@ -133,6 +137,8 @@ void loop() {
          LocoNet.reportSensor(1, sensor);
       }
   }
+  if ((leftDoor.doorState() > 1) && (rightDoor.doorState() > 1))
+	  disableServos();
   /*** PUSH BUTTON ***/
 //  delay(1);
   leftDoor.update();
@@ -166,7 +172,16 @@ void toggleDoors() {
   }
 }
 
+void enableServos() {
+	digitalWrite(servoEnablePin, HIGH);
+}
+
+void disableServos() {
+	digitalWrite(servoEnablePin, LOW);
+}
+
 void closeDoors() {
+	enableServos();
   rightDoor.setDelay(0);
   rightDoor.close();
   leftDoor.setDelay(250);
@@ -174,6 +189,7 @@ void closeDoors() {
 }
 
 void openDoors() {
+	enableServos();
   leftDoor.setDelay(0);
   leftDoor.open();
   rightDoor.setDelay(250);
