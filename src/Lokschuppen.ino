@@ -12,6 +12,10 @@
 #define shedLightPin 3
 #define servoEnablePin 15
 
+#define sensorAddress 2001
+#define doorAddress 2002
+#define shedLightAddress 2003
+#define annexLightAddress 2004
 /* 
     Door related stuff 
 */
@@ -52,8 +56,9 @@ boolean programmingMode;
 
 Bounce bouncer = Bounce();
 int inputPin = A0;
+boolean boucerPrevState;
 
-#define LOCONET_TX_PIN 6
+#define LOCONET_TX_PIN 5
 
 #define LNCV_COUNT 16
 
@@ -61,11 +66,14 @@ int inputPin = A0;
 int sensor = 0;
 
 void setup() {
+  pinMode( servoEnablePin, OUTPUT);
+  disableServos();
   while (!Serial)
     Serial.begin(57600);
 
   Serial.println("Lokschuppen v0.0");  
- //LocoNet.init(LOCONET_TX_PIN);
+  LocoNet.init(LOCONET_TX_PIN);
+//  LocoNet.init();
 
   // put your setup code here, to run once:
   leftDoorServo.attach(9);
@@ -82,8 +90,6 @@ void setup() {
   digitalWrite( annexLightPin, annexLightsOn);
   pinMode( shedLightPin ,OUTPUT);
   digitalWrite( shedLightPin, shedLightsOn);
-  pinMode( servoEnablePin, OUTPUT);
-  disableServos();
   lncv[0] = 1;
   for (int i(1); i < LNCV_COUNT; ++i) {
     lncv[i] = i;
@@ -134,7 +140,8 @@ void loop() {
            sensor = 0;
          else 
             sensor = 1;
-         LocoNet.reportSensor(1, sensor);
+		 Serial.println(sensor);
+         Serial.println(LocoNet.reportSensor(1, sensor));
       }
   }
   if ((leftDoor.doorState() > 1) && (rightDoor.doorState() > 1))
@@ -144,13 +151,16 @@ void loop() {
   leftDoor.update();
   rightDoor.update();
   if (bouncer.update()) {
-    if (bouncer.read()) {
-      toggleDoors();
-      Serial.println(bouncer.read());
+    if (bouncer.rose()) {
+	  LocoNet.reportSensor(sensorAddress, 1);
+	  Serial.println(1);
+    } else if (bouncer.fell()) {
+	  LocoNet.reportSensor(sensorAddress, 0);
+	  Serial.println(0);	  
     }
   }
   /*** LOCONET ***/
-/*  LnPacket = LocoNet.receive();
+  LnPacket = LocoNet.receive();
   if (LnPacket) {
     uint8_t packetConsumed(LocoNet.processSwitchSensorMessage(LnPacket));
     if (packetConsumed == 0) {
@@ -161,8 +171,16 @@ void loop() {
       Serial.print("End Loop\n");
     }
   }
-*/
 };
+
+void notifySwitchRequest( uint16_t Address, uint8_t Output, uint8_t Direction ) {
+  Serial.print("Switch Request: ");
+  Serial.print(Address, DEC);
+  Serial.print(':');
+  Serial.print(Direction ? "Closed" : "Thrown");
+  Serial.print(" - ");
+  Serial.println(Output ? "On" : "Off");
+}
 
 void toggleDoors() {
   if (leftDoor.doorState() == Door::DOOROPEN) {
