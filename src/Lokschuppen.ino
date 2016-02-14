@@ -180,6 +180,26 @@ void notifySwitchRequest( uint16_t Address, uint8_t Output, uint8_t Direction ) 
   Serial.print(Direction ? "Closed" : "Thrown");
   Serial.print(" - ");
   Serial.println(Output ? "On" : "Off");
+  if (Address == shedLightAddress) {
+	  if (Direction) {
+          digitalWrite(shedLightPin, HIGH);
+	  } else {
+		  digitalWrite(shedLightPin, LOW);
+	  }
+  } else if (Address == annexLightAddress) {
+	  if (Direction) {
+          digitalWrite(annexLightPin, HIGH);
+	  } else {
+		  digitalWrite(annexLightPin, LOW);
+	  }
+	  LocoNet.reportSwitch(annexLightAddress, Output, Direction);
+  } else if (Address == doorAddress) {
+	  if (Direction) {
+		  closeDoors();
+	  } else {
+		  openDoors();
+	  }
+  }
 }
 
 void toggleDoors() {
