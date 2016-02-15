@@ -16,6 +16,18 @@
 #define doorAddress 2002
 #define shedLightAddress 2003
 #define annexLightAddress 2004
+
+#define DEBUG_OUTPUT
+#undef DEBUG_OUTPUT
+
+#ifdef DEBUG_OUTPUT
+#define USE_SERIAL
+#define DEBUG(x) Serial.print(x)
+#define DEBUGLN(x) Serial.println(x)
+#else
+#define DEBUG(x)
+#define DEBUGLN(x)
+#endif
 /* 
     Door related stuff 
 */
@@ -68,10 +80,11 @@ int sensor = 0;
 void setup() {
   pinMode( servoEnablePin, OUTPUT);
   disableServos();
+#ifdef USESERIAL
   while (!Serial)
     Serial.begin(57600);
-
-  Serial.println("Lokschuppen v0.0");  
+#endif
+  DEBUGLN("Lokschuppen v0.0");  
   LocoNet.init(LOCONET_TX_PIN);
 //  LocoNet.init();
 
@@ -101,16 +114,17 @@ void setup() {
 
 
 void commitLNCVUpdate() {
-  Serial.print("Module Address is now: ");
-  Serial.print(lncv[0]);
-  Serial.print("\n");
+  DEBUG("Module Address is now: ");
+  DEBUG(lncv[0]);
+  DEBUG("\n");
 }
 void loop() {
   /*** SERIAL INTERFACE ***/
+#ifdef USESERIAL
   if (Serial.available() > 0) {
       // read the incoming byte:
       incomingByte = Serial.read();
-      Serial.print(incomingByte);
+      DEBUG(incomingByte);
       if (incomingByte == 't') {
         toggleDoors();
       } else if (incomingByte == 'o') {
@@ -123,8 +137,8 @@ void loop() {
         } else {
           annexLightsOn = true;
         }
-        Serial.print("annex lights: " );
-        Serial.println(annexLightsOn);
+        DEBUG("annex lights: " );
+        DEBUGLN(annexLightsOn);
         digitalWrite(annexLightPin, annexLightsOn);
       } else if (incomingByte == 'l') {
         if (shedLightsOn) {
@@ -132,18 +146,19 @@ void loop() {
         } else {
           shedLightsOn = true;
         }
-        Serial.print("shed lights: " );
-        Serial.println(shedLightsOn);
+        DEBUG("shed lights: " );
+        DEBUGLN(shedLightsOn);
         digitalWrite(shedLightPin, shedLightsOn);
       } else if (incomingByte == 's') {
          if (sensor)
            sensor = 0;
          else 
             sensor = 1;
-		 Serial.println(sensor);
-         Serial.println(LocoNet.reportSensor(1, sensor));
+		 DEBUGLN(sensor);
+         DEBUGLN(LocoNet.reportSensor(1, sensor));
       }
   }
+#endif
   if ((leftDoor.doorState() > 1) && (rightDoor.doorState() > 1))
 	  disableServos();
   /*** PUSH BUTTON ***/
@@ -153,10 +168,10 @@ void loop() {
   if (bouncer.update()) {
     if (bouncer.rose()) {
 	  LocoNet.reportSensor(sensorAddress, 1);
-	  Serial.println(1);
+	  DEBUGLN(1);
     } else if (bouncer.fell()) {
 	  LocoNet.reportSensor(sensorAddress, 0);
-	  Serial.println(0);	  
+	  DEBUGLN(0);	  
     }
   }
   /*** LOCONET ***/
@@ -164,22 +179,22 @@ void loop() {
   if (LnPacket) {
     uint8_t packetConsumed(LocoNet.processSwitchSensorMessage(LnPacket));
     if (packetConsumed == 0) {
-      Serial.print("Loop ");
-      Serial.print((int)LnPacket);
+      DEBUG("Loop ");
+      DEBUG((int)LnPacket);
       dumpPacket(LnPacket->ub);
       packetConsumed = lnCV.processLNCVMessage(LnPacket);
-      Serial.print("End Loop\n");
+      DEBUG("End Loop\n");
     }
   }
 };
 
 void notifySwitchRequest( uint16_t Address, uint8_t Output, uint8_t Direction ) {
-  Serial.print("Switch Request: ");
-  Serial.print(Address, DEC);
-  Serial.print(':');
-  Serial.print(Direction ? "Closed" : "Thrown");
-  Serial.print(" - ");
-  Serial.println(Output ? "On" : "Off");
+  DEBUG("Switch Request: ");
+  DEBUG(Address);
+  DEBUG(':');
+  DEBUG(Direction ? "Closed" : "Thrown");
+  DEBUG(" - ");
+  DEBUGLN(Output ? "On" : "Off");
   if (Address == shedLightAddress) {
 	  if (Direction) {
           digitalWrite(shedLightPin, HIGH);
@@ -231,15 +246,16 @@ void openDoors() {
   leftDoor.setDelay(0);
   leftDoor.open();
   rightDoor.setDelay(250);
-  Serial.println(leftDoor.getDelay());
-  Serial.println(rightDoor.getDelay());
+  DEBUGLN(leftDoor.getDelay());
+  DEBUGLN(rightDoor.getDelay());
   rightDoor.open();
 }
 
 
 void dumpPacket(UhlenbrockMsg & ub) {
+#ifdef DEBUG_OUTPUT
   Serial.print(" PKT: ");
-  Serial.print(ub.command, HEX);
+  Serial.print(ub.command);
   Serial.print(" ");
   Serial.print(ub.mesg_size, HEX);
   Serial.print(" ");
@@ -258,6 +274,7 @@ void dumpPacket(UhlenbrockMsg & ub) {
     Serial.print(" ");
   }
   Serial.write("\n");
+#endif
 }
 
   /**
@@ -268,6 +285,7 @@ void dumpPacket(UhlenbrockMsg & ub) {
    */
 int8_t notifyLNCVread(uint16_t ArtNr, uint16_t lncvAddress, uint16_t,
     uint16_t & lncvValue) {
+#ifdef DEBUG_OUTPUT
   Serial.print("Enter notifyLNCVread(");
   Serial.print(ArtNr, HEX);
   Serial.print(", ");
@@ -276,26 +294,27 @@ int8_t notifyLNCVread(uint16_t ArtNr, uint16_t lncvAddress, uint16_t,
   Serial.print(", ");
   Serial.print(lncvValue, HEX);
   Serial.print(")");
+#endif
   // Step 1: Can this be addressed to me?
   // All ReadRequests contain the ARTNR. For starting programming, we do not accept the broadcast address.
   if (programmingMode) {
     if (ArtNr == ARTNR) {
       if (lncvAddress < 16) {
         lncvValue = lncv[lncvAddress];
-        Serial.print(" LNCV Value: ");
-        Serial.print(lncvValue);
-        Serial.print("\n");
+        DEBUG(" LNCV Value: ");
+        DEBUG(lncvValue);
+        DEBUG("\n");
         return LNCV_LACK_OK;
       } else {
         // Invalid LNCV address, request a NAXK
         return LNCV_LACK_ERROR_UNSUPPORTED;
       }
     } else {
-      Serial.print("ArtNr invalid.\n");
+      DEBUG("ArtNr invalid.\n");
       return -1;
     }
   } else {
-    Serial.print("Ignoring Request.\n");
+    DEBUG("Ignoring Request.\n");
     return -1;
   }
 }
@@ -303,20 +322,20 @@ int8_t notifyLNCVread(uint16_t ArtNr, uint16_t lncvAddress, uint16_t,
 int8_t notifyLNCVprogrammingStart(uint16_t & ArtNr, uint16_t & ModuleAddress) {
   // Enter programming mode. If we already are in programming mode,
   // we simply send a response and nothing else happens.
-  Serial.print("notifyLNCVProgrammingStart ");
+  DEBUG("notifyLNCVProgrammingStart ");
   if (ArtNr == ARTNR) {
-    Serial.print("artnrOK ");
+    DEBUG("artnrOK ");
     if (ModuleAddress == lncv[0]) {
-      Serial.print("moduleUNI ENTERING PROGRAMMING MODE\n");
+      DEBUG("moduleUNI ENTERING PROGRAMMING MODE\n");
       programmingMode = true;
       return LNCV_LACK_OK;
     } else if (ModuleAddress == 0xFFFF) {
-      Serial.print("moduleBC ENTERING PROGRAMMING MODE\n");
+      DEBUG("moduleBC ENTERING PROGRAMMING MODE\n");
       ModuleAddress = lncv[0];
       return LNCV_LACK_OK;
     }
   }
-  Serial.print("Ignoring Request.\n");
+  DEBUG("Ignoring Request.\n");
   return -1;
 }
 
@@ -325,15 +344,15 @@ int8_t notifyLNCVprogrammingStart(uint16_t & ArtNr, uint16_t & ModuleAddress) {
    */
 int8_t notifyLNCVwrite(uint16_t ArtNr, uint16_t lncvAddress,
     uint16_t lncvValue) {
-  Serial.print("notifyLNCVwrite, ");
+  DEBUG("notifyLNCVwrite, ");
   //  dumpPacket(ub);
   if (!programmingMode) {
-    Serial.print("not in Programming Mode.\n");
+    DEBUG("not in Programming Mode.\n");
     return -1;
   }
 
   if (ArtNr == ARTNR) {
-    Serial.print("Artnr OK, ");
+    DEBUG("Artnr OK, ");
 
     if (lncvAddress < 16) {
       lncv[lncvAddress] = lncvValue;
@@ -345,7 +364,7 @@ int8_t notifyLNCVwrite(uint16_t ArtNr, uint16_t lncvAddress,
 
   }
   else {
-    Serial.print("Artnr Invalid.\n");
+    DEBUG("Artnr Invalid.\n");
     return -1;
   }
 }
@@ -354,26 +373,26 @@ int8_t notifyLNCVwrite(uint16_t ArtNr, uint16_t lncvAddress,
    * Notifies the code on the reception of a request to end programming mode
    */
 void notifyLNCVprogrammingStop(uint16_t ArtNr, uint16_t ModuleAddress) {
-  Serial.print("notifyLNCVprogrammingStop ");
+  DEBUG("notifyLNCVprogrammingStop ");
   if (programmingMode) {
     if (ArtNr == ARTNR && ModuleAddress == lncv[0]) {
       programmingMode = false;
-      Serial.print("End Programing Mode.\n");
+      DEBUG("End Programing Mode.\n");
       commitLNCVUpdate();
     }
     else {
       if (ArtNr != ARTNR) {
-        Serial.print("Wrong Artnr.\n");
+        DEBUG("Wrong Artnr.\n");
         return;
       }
       if (ModuleAddress != lncv[0]) {
-        Serial.print("Wrong Module Address.\n");
+        DEBUG("Wrong Module Address.\n");
         return;
       }
     }
   }
   else {
-    Serial.print("Ignoring Request.\n");
+    DEBUG("Ignoring Request.\n");
   }
 }
 
