@@ -5,6 +5,7 @@
 #include "Door.h"
 #include "Servo.h"
 
+#include "decoder_conf.h"
 
 #define annexLightPin 2
 #define shedLightPin 3
@@ -30,7 +31,7 @@
 #endif
 
 decoder_conf_t EEMEM _CV = {
-#include <default_conf.h>
+#include "default_conf.h"
 };
 
 /* 
@@ -210,7 +211,7 @@ void notifySwitchRequest( uint16_t Address, uint8_t Output, uint8_t Direction ) 
 	  } else {
 		  digitalWrite(annexLightPin, LOW);
 	  }
-	  LocoNet.reportSwitch(annexLightAddress, Output, Direction);
+	  LocoNet.reportSwitch(annexLightAddress);
   } else if (Address == doorAddress) {
 	  if (Direction) {
 		  closeDoors();
