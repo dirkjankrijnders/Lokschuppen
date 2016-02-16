@@ -1,12 +1,10 @@
 #include <LocoNet.h>
+#include <EEPROM.h>
 
 #include "Bounce2.h"
 #include "Door.h"
-
 #include "Servo.h"
 
-//#include <Delay.h>
-#include <EEPROM.h>
 
 #define annexLightPin 2
 #define shedLightPin 3
@@ -16,6 +14,8 @@
 #define doorAddress 2002
 #define shedLightAddress 2003
 #define annexLightAddress 2004
+
+#define ARTNR 10001
 
 #define DEBUG_OUTPUT
 #undef DEBUG_OUTPUT
@@ -28,9 +28,15 @@
 #define DEBUG(x)
 #define DEBUGLN(x)
 #endif
+
+decoder_conf_t EEMEM _CV = {
+#include <default_conf.h>
+};
+
 /* 
     Door related stuff 
 */
+
 Servo leftDoorServo;
 Servo rightDoorServo;
 
@@ -72,9 +78,6 @@ boolean boucerPrevState;
 
 #define LOCONET_TX_PIN 5
 
-#define LNCV_COUNT 16
-
-#define ARTNR 5001
 int sensor = 0;
 
 void setup() {
