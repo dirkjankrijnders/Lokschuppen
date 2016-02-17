@@ -83,7 +83,7 @@ boolean boucerPrevState;
 #define LOCONET_TX_PIN 5
 
 int sensor = 0;
-
+bool pins_busy = false;
 /*
 	Switch related stuff
 */
@@ -185,7 +185,11 @@ void loop() {
       }
   }
 #endif
-  if ((leftDoor.doorState() > 1) && (rightDoor.doorState() > 1))
+  pins_busy = false;
+  for (uint8_t i =0 ; i < MAX ; i++) {
+	  pins_busy |= confpins[i]->update();
+  };
+  if ((leftDoor.doorState() > 1) && (rightDoor.doorState() > 1) && !pins_busy)
 	  disableServos();
   /*** PUSH BUTTON ***/
 //  delay(1);
