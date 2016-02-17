@@ -1,3 +1,16 @@
+
+#define DEBUG_OUTPUT
+//#undef DEBUG_OUTPUT
+
+#ifdef DEBUG_OUTPUT
+#define USE_SERIAL
+#define DEBUG(x) Serial.print(x)
+#define DEBUGLN(x) Serial.println(x)
+#else
+#define DEBUG(x)
+#define DEBUGLN(x)
+#endif
+
 #include <LocoNet.h>
 #include <EEPROM.h>
 
@@ -6,6 +19,8 @@
 #include "Servo.h"
 
 #include "decoder_conf.h"
+#include "configuredpins.h"
+#include "cvaccess.h"
 
 #define annexLightPin 2
 #define shedLightPin 3
@@ -17,18 +32,6 @@
 #define annexLightAddress 2004
 
 #define ARTNR 10001
-
-#define DEBUG_OUTPUT
-#undef DEBUG_OUTPUT
-
-#ifdef DEBUG_OUTPUT
-#define USE_SERIAL
-#define DEBUG(x) Serial.print(x)
-#define DEBUGLN(x) Serial.println(x)
-#else
-#define DEBUG(x)
-#define DEBUGLN(x)
-#endif
 
 decoder_conf_t EEMEM _CV = {
 #include "default_conf.h"
@@ -81,20 +84,27 @@ boolean boucerPrevState;
 
 int sensor = 0;
 
+/*
+	Switch related stuff
+*/
+#define MAX 2
+ConfiguredPin* confpins[MAX];
+
 void setup() {
   pinMode( servoEnablePin, OUTPUT);
   disableServos();
-#ifdef USESERIAL
+#ifdef USE_SERIAL
   while (!Serial)
     Serial.begin(57600);
 #endif
+
   DEBUGLN("Lokschuppen v0.0");  
   LocoNet.init(LOCONET_TX_PIN);
-//  LocoNet.init();
 
   // put your setup code here, to run once:
   leftDoorServo.attach(9);
   rightDoorServo.attach(10);
+
   // Setup the button
   pinMode( inputPin ,INPUT);
   // Activate internal pull-up (optional) 
@@ -107,21 +117,33 @@ void setup() {
   digitalWrite( annexLightPin, annexLightsOn);
   pinMode( shedLightPin ,OUTPUT);
   digitalWrite( shedLightPin, shedLightsOn);
-  lncv[0] = 1;
-  for (int i(1); i < LNCV_COUNT; ++i) {
-    lncv[i] = i;
+
+  uint8_t i = 0;
+  uint8_t pin_config;
+  uint16_t pin, address, pos1, pos2, speed;
+  
+  for (i = 0; i < 2; i++) {
+    pin_config = eeprom_read_byte((uint8_t*)&(_CV.pin_conf[i]));
+    pin   = eeprom_read_word((uint16_t*)&(_CV.conf[i].servo.arduinopin));
+    address = eeprom_read_word((uint16_t*)&(_CV.conf[i].servo.address));
+    switch (pin_config) {
+      case 2: //Servo
+        //ServoSwitch(i,0);
+        pos1  = eeprom_read_word((uint16_t*)&(_CV.conf[i].servo.pos1));
+        pos2  = eeprom_read_word((uint16_t*)&(_CV.conf[i].servo.pos2));
+        speed = eeprom_read_word((uint16_t*)&(_CV.conf[i].servo.speed));
+        confpins[i] = new ServoSwitch(i, pin, address, pos1, pos2, speed, servoEnablePin);
+        break;
+      default:
+        confpins[i] = new InputPin(i, pin, address);
+        break;
+    }  
+    confpins[i]->print();
   }
-  //commitLNCVUpdate();
   programmingMode = false;
 
 }
 
-
-void commitLNCVUpdate() {
-  DEBUG("Module Address is now: ");
-  DEBUG(lncv[0]);
-  DEBUG("\n");
-}
 void loop() {
   /*** SERIAL INTERFACE ***/
 #ifdef USESERIAL
@@ -219,6 +241,18 @@ void notifySwitchRequest( uint16_t Address, uint8_t Output, uint8_t Direction ) 
 		  openDoors();
 	  }
   }
+  for (uint8_t i =0 ; i < MAX ; i++) {
+    if (confpins[i]->_address == Address){
+      confpins[i]->set(Direction, Output);
+      
+      DEBUG("Thrown switch: ");
+      DEBUG(i);
+      DEBUG(" to :");
+      confpins[i]->print_state();
+      DEBUG("\n");
+    }
+  }
+  
 }
 
 void toggleDoors() {
@@ -281,7 +315,7 @@ void dumpPacket(UhlenbrockMsg & ub) {
 #endif
 }
 
-  /**
+/**
    * Notifies the code on the reception of a read request.
    * Note that without application knowledge (i.e., art.-nr., module address
    * and "Programming Mode" state), it is not possible to distinguish
@@ -289,36 +323,44 @@ void dumpPacket(UhlenbrockMsg & ub) {
    */
 int8_t notifyLNCVread(uint16_t ArtNr, uint16_t lncvAddress, uint16_t,
     uint16_t & lncvValue) {
-#ifdef DEBUG_OUTPUT
-  Serial.print("Enter notifyLNCVread(");
-  Serial.print(ArtNr, HEX);
-  Serial.print(", ");
-  Serial.print(lncvAddress, HEX);
-  Serial.print(", ");
-  Serial.print(", ");
-  Serial.print(lncvValue, HEX);
-  Serial.print(")");
-#endif
+
+  DEBUG("Enter notifyLNCVread(");
+  DEBUG(ArtNr);
+  DEBUG(", ");
+  DEBUG(lncvAddress);
+  DEBUG(", ");
+  DEBUG(", ");
+  DEBUG(lncvValue);
+  DEBUG(")\n");
+  
   // Step 1: Can this be addressed to me?
   // All ReadRequests contain the ARTNR. For starting programming, we do not accept the broadcast address.
   if (programmingMode) {
     if (ArtNr == ARTNR) {
-      if (lncvAddress < 16) {
-        lncvValue = lncv[lncvAddress];
+      if (lncvAddress < 255) {
+        lncvValue = read_cv(&_CV, lncvAddress);
+        
+        DEBUG("\nEeprom address: ");
+        DEBUG(((uint16_t)&(_CV.address)+cv2address(lncvAddress)));
         DEBUG(" LNCV Value: ");
         DEBUG(lncvValue);
         DEBUG("\n");
+        
         return LNCV_LACK_OK;
       } else {
         // Invalid LNCV address, request a NAXK
         return LNCV_LACK_ERROR_UNSUPPORTED;
       }
     } else {
+      
       DEBUG("ArtNr invalid.\n");
+      
       return -1;
     }
   } else {
+    
     DEBUG("Ignoring Request.\n");
+    
     return -1;
   }
 }
@@ -326,20 +368,25 @@ int8_t notifyLNCVread(uint16_t ArtNr, uint16_t lncvAddress, uint16_t,
 int8_t notifyLNCVprogrammingStart(uint16_t & ArtNr, uint16_t & ModuleAddress) {
   // Enter programming mode. If we already are in programming mode,
   // we simply send a response and nothing else happens.
-  DEBUG("notifyLNCVProgrammingStart ");
+  uint16_t MyModuleAddress = eeprom_read_byte(&_CV.address);
+
+  DEBUG(ArtNr);
+  DEBUG(ModuleAddress);
+  DEBUG(MyModuleAddress);
+
+
   if (ArtNr == ARTNR) {
-    DEBUG("artnrOK ");
-    if (ModuleAddress == lncv[0]) {
-      DEBUG("moduleUNI ENTERING PROGRAMMING MODE\n");
+    if (ModuleAddress == MyModuleAddress) {
       programmingMode = true;
+
+      DEBUG("Programming started");
+
       return LNCV_LACK_OK;
     } else if (ModuleAddress == 0xFFFF) {
-      DEBUG("moduleBC ENTERING PROGRAMMING MODE\n");
-      ModuleAddress = lncv[0];
+      ModuleAddress = eeprom_read_byte(&_CV.address);
       return LNCV_LACK_OK;
     }
   }
-  DEBUG("Ignoring Request.\n");
   return -1;
 }
 
@@ -348,18 +395,29 @@ int8_t notifyLNCVprogrammingStart(uint16_t & ArtNr, uint16_t & ModuleAddress) {
    */
 int8_t notifyLNCVwrite(uint16_t ArtNr, uint16_t lncvAddress,
     uint16_t lncvValue) {
-  DEBUG("notifyLNCVwrite, ");
   //  dumpPacket(ub);
   if (!programmingMode) {
-    DEBUG("not in Programming Mode.\n");
     return -1;
   }
 
-  if (ArtNr == ARTNR) {
-    DEBUG("Artnr OK, ");
+  DEBUG("Enter notifyLNCVwrite(");
+  DEBUG(ArtNr);
+  DEBUG(", ");
+  DEBUG(lncvAddress);
+  DEBUG(", ");
+  DEBUG(", ");
+  DEBUG(lncvValue);
+  DEBUG(")\n");
 
-    if (lncvAddress < 16) {
-      lncv[lncvAddress] = lncvValue;
+  if (ArtNr == ARTNR) {
+
+    if (lncvAddress < 255) {
+      DEBUG(cv2address(lncvAddress));
+      DEBUG(bytesizeCV(lncvAddress));
+      DEBUG((uint8_t)lncvValue);
+      write_cv(&_CV, lncvAddress, lncvValue);      
+      DEBUG(read_cv(&_CV, lncvAddress));
+      //lncv[lncvAddress] = lncvValue;
       return LNCV_LACK_OK;
     }
     else {
@@ -368,35 +426,73 @@ int8_t notifyLNCVwrite(uint16_t ArtNr, uint16_t lncvAddress,
 
   }
   else {
+    
     DEBUG("Artnr Invalid.\n");
+    
     return -1;
   }
 }
 
+void commitLNCVUpdate() {
+//  readCV();
+
+  DEBUG("Module Address is now: ");
+  DEBUG(eeprom_read_byte(&_CV.address));
+  DEBUG("\n");
+
+
+}
   /**
    * Notifies the code on the reception of a request to end programming mode
    */
 void notifyLNCVprogrammingStop(uint16_t ArtNr, uint16_t ModuleAddress) {
+  
   DEBUG("notifyLNCVprogrammingStop ");
+      
   if (programmingMode) {
-    if (ArtNr == ARTNR && ModuleAddress == lncv[0]) {
+    if (ArtNr == ARTNR && ModuleAddress == eeprom_read_byte(&_CV.address)) {
       programmingMode = false;
+      
       DEBUG("End Programing Mode.\n");
+          
+
       commitLNCVUpdate();
     }
     else {
       if (ArtNr != ARTNR) {
+        
         DEBUG("Wrong Artnr.\n");
+            
+
         return;
       }
-      if (ModuleAddress != lncv[0]) {
+      if (ModuleAddress != eeprom_read_byte(&_CV.address)) {
+        
         DEBUG("Wrong Module Address.\n");
+            
+
         return;
       }
     }
   }
   else {
+    
     DEBUG("Ignoring Request.\n");
+        
+
   }
 }
 
+int8_t notifyLNCVdiscover( uint16_t & ArtNr, uint16_t & ModuleAddress ) {
+  DEBUG("Discover: ");
+  DEBUG(ArtNr);
+  DEBUG(ARTNR);
+//    if (ArtNr == ARTNR ) {
+      uint16_t MyModuleAddress = eeprom_read_byte(&_CV.address);
+      ModuleAddress = MyModuleAddress;
+    DEBUG(ModuleAddress);
+      return LNCV_LACK_OK;
+ //   }
+    
+
+}
