@@ -37,6 +37,7 @@ decoder_conf_t EEMEM _CV = {
 #include "default_conf.h"
 };
 
+#define DoorStateAddress (uint16_t*)250
 /* 
     Door related stuff 
 */
@@ -104,7 +105,12 @@ void setup() {
   // put your setup code here, to run once:
   leftDoorServo.attach(9);
   rightDoorServo.attach(10);
-
+  if (eeprom_read_word(DoorStateAddress) == 1) {
+	  openDoors();
+  } else {
+	  closeDoors();
+  }
+  
   // Setup the button
   pinMode( inputPin ,INPUT);
   // Activate internal pull-up (optional) 
@@ -133,6 +139,7 @@ void setup() {
         pos2  = eeprom_read_word((uint16_t*)&(_CV.conf[i].servo.pos2));
         speed = eeprom_read_word((uint16_t*)&(_CV.conf[i].servo.speed));
         confpins[i] = new ServoSwitch(i, pin, address, pos1, pos2, speed, servoEnablePin);
+		confpins[i]->restore_state(eeprom_read_word((uint16_t*)&(_CV.conf[i].servo.state)));
         break;
       default:
         confpins[i] = new InputPin(i, pin, address);
@@ -241,14 +248,16 @@ void notifySwitchRequest( uint16_t Address, uint8_t Output, uint8_t Direction ) 
   } else if (Address == doorAddress) {
 	  if (Direction) {
 		  closeDoors();
+		  eeprom_write_word(DoorStateAddress, 1);
 	  } else {
 		  openDoors();
+		  eeprom_write_word(DoorStateAddress, 0);
 	  }
   }
   for (uint8_t i =0 ; i < MAX ; i++) {
     if (confpins[i]->_address == Address){
       confpins[i]->set(Direction, Output);
-      
+      eeprom_write_word((uint16_t*)&(_CV.conf[i].servo.state), confpins[i]->get_state());
       DEBUG("Thrown switch: ");
       DEBUG(i);
       DEBUG(" to :");
@@ -438,13 +447,8 @@ int8_t notifyLNCVwrite(uint16_t ArtNr, uint16_t lncvAddress,
 }
 
 void commitLNCVUpdate() {
-//  readCV();
-
-  DEBUG("Module Address is now: ");
-  DEBUG(eeprom_read_byte(&_CV.address));
-  DEBUG("\n");
-
-
+	 // Reset the decoder to reread the configuration
+	asm volatile ("  jmp 0");
 }
   /**
    * Notifies the code on the reception of a request to end programming mode
