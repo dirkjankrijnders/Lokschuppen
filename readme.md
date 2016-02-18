@@ -1,6 +1,6 @@
 Lokschuppen
 ===========
-[![Build Status](https://travis-ci.org/dirkjankrijnders/Lokschuppen.svg?branch=master)](https://travis-ci.org/dirkjankrijnders/Lokschuppen)
+Master: [![Build Status](https://travis-ci.org/dirkjankrijnders/Lokschuppen.svg?branch=master)](https://travis-ci.org/dirkjankrijnders/Lokschuppen) Develop: [![Build Status](https://travis-ci.org/dirkjankrijnders/Lokschuppen.svg?branch=develop)](https://travis-ci.org/dirkjankrijnders/Lokschuppen)
 
 The locomotive shed will have the following sensors:
 
