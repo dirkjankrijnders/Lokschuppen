@@ -91,6 +91,14 @@ bool pins_busy = false;
 #define MAX 2
 ConfiguredPin* confpins[MAX];
 
+void reportSwitch(uint16_t address){
+  LocoNet.reportSwitch(address);
+}
+
+void reportSensor(uint16_t address, bool state) {
+  LocoNet.reportSensor(address, state);
+}
+
 void setup() {
   pinMode( servoEnablePin, OUTPUT);
   disableServos();
