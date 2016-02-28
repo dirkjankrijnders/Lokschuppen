@@ -91,8 +91,19 @@ bool pins_busy = false;
 #define MAX 2
 ConfiguredPin* confpins[MAX];
 
-void reportSwitch(uint16_t address){
-  LocoNet.reportSwitch(address);
+void reportSwitch(uint16_t Address, uint16_t state){
+	byte AddrH = ( (--Address >> 7) & 0x0F ) | OPC_SW_REP_INPUTS  ;
+	byte AddrL = ( Address) & 0x7F ;
+
+	if ( state == 0 )
+		AddrH |= OPC_SW_REP_SW  ;
+	if ( state == 1 )
+		AddrH |= OPC_SW_REP_HI  ;
+	if ( state == 2 )
+		AddrH |= OPC_SW_REP_HI | OPC_SW_REP_SW ;
+	
+	LocoNet.send(OPC_SW_REP, AddrL, AddrH );
+//  LocoNet.reportSwitch(address);
 }
 
 void reportSensor(uint16_t address, bool state) {
