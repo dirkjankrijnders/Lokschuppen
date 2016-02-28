@@ -47,16 +47,13 @@ Servo rightDoorServo;
 
 Door leftDoor(&leftDoorServo, 170, 20, 1, 250);
 Door rightDoor(&rightDoorServo, 20, 160, 1, 250);
+DoubleDoor doors(&leftDoor, &rightDoor, 250, doorAddress);
 
 bool annexLightsOn = false;
 bool shedLightsOn = false;
 
 void enableServos();
 void disableServos();
-
-void openDoors();
-void closeDoors();
-void toggleDoors(); 
 
 /* 
     Serial related stuff
@@ -125,9 +122,9 @@ void setup() {
   leftDoorServo.attach(9);
   rightDoorServo.attach(10);
   if (eeprom_read_word(DoorStateAddress) == 1) {
-	  openDoors();
+	  doors.open();
   } else {
-	  closeDoors();
+	  doors.close();
   }
   
   // Setup the button
@@ -219,8 +216,7 @@ void loop() {
 	  disableServos();
   /*** PUSH BUTTON ***/
 //  delay(1);
-  leftDoor.update();
-  rightDoor.update();
+  doors.update();
   if (bouncer.update()) {
     if (bouncer.rose()) {
 	  LocoNet.reportSensor(sensorAddress, 1);
@@ -263,13 +259,13 @@ void notifySwitchRequest( uint16_t Address, uint8_t Output, uint8_t Direction ) 
 	  } else {
 		  digitalWrite(annexLightPin, LOW);
 	  }
-	  LocoNet.reportSwitch(annexLightAddress);
+	  //LocoNet.reportSwitch(annexLightAddress);
   } else if (Address == doorAddress) {
 	  if (Direction) {
-		  closeDoors();
+		  doors.close();
 		  eeprom_write_word(DoorStateAddress, 1);
 	  } else {
-		  openDoors();
+		  doors.open();
 		  eeprom_write_word(DoorStateAddress, 0);
 	  }
   }
@@ -288,10 +284,10 @@ void notifySwitchRequest( uint16_t Address, uint8_t Output, uint8_t Direction ) 
 }
 
 void toggleDoors() {
-  if (leftDoor.doorState() == Door::DOOROPEN) {
-    closeDoors();
-  } else if (leftDoor.doorState() == Door::DOORCLOSED) {
-    openDoors();
+  if (doors.state() == Door::DOOROPEN) {
+    doors.close();
+  } else if (doors.state() == Door::DOORCLOSED) {
+    doors.open();
   }
 }
 
@@ -302,25 +298,6 @@ void enableServos() {
 void disableServos() {
 	digitalWrite(servoEnablePin, LOW);
 }
-
-void closeDoors() {
-	enableServos();
-  rightDoor.setDelay(0);
-  rightDoor.close();
-  leftDoor.setDelay(250);
-  leftDoor.close();
-}
-
-void openDoors() {
-	enableServos();
-  leftDoor.setDelay(0);
-  leftDoor.open();
-  rightDoor.setDelay(250);
-  DEBUGLN(leftDoor.getDelay());
-  DEBUGLN(rightDoor.getDelay());
-  rightDoor.open();
-}
-
 
 void dumpPacket(UhlenbrockMsg & ub) {
 #ifdef DEBUG_OUTPUT
