@@ -12,36 +12,54 @@
 #include "Servo.h"
 
 class Door {
-  private:
+private:
     Servo* _servo;
     unsigned int _degreesOpen;
     unsigned int _degreesClosed;
     int _speed;
-		unsigned int _slowCounter;
-		unsigned int _slowDown;
+	unsigned int _slowCounter;
+	unsigned int _slowDown;
 		
     unsigned int _currentDegrees;
     unsigned int _targetDegrees;
 		
-		unsigned int _delayCounter;
-		unsigned int _delayCounter2;
-  public:
+	unsigned int _delayCounter;
+	unsigned int _delayCounter2;
+public:
     Door(Servo* servo, unsigned int degreesOpen, unsigned degreesClosed, unsigned int speed = 1, unsigned int slowDown = 0);
     void open();
     void close();
     void set(unsigned int degrees);
     
     void update();
-		void setDelay(unsigned int delay);
-		unsigned int getDelay();
-		unsigned int doorState();
+	void setDelay(unsigned int delay);
+	unsigned int getDelay();
+	unsigned int doorState();
 		
-		enum state {
-			DOORERROR = 0,
-			DOORMOVING,
-			DOOROPEN,
-			DOORCLOSED
-		};
+	enum state {
+		DOORERROR = 0,
+		DOORMOVING,
+		DOOROPEN,
+		DOORCLOSED
+	};
+};
+
+class DoubleDoor {
+private:
+	Door* _doors[2];
+	int _delay;
+	uint16_t _address;
+	
+	int _prev_state;
+public:
+    DoubleDoor(Door* door1, Door* door2, int delay, uint16_t address);
+	
+	void open();
+    void close();
+    
+	void update();
+	
+	int state();
 };
 
 #endif
