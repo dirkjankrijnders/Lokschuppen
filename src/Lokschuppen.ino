@@ -31,7 +31,7 @@
 #define shedLightAddress 2003
 #define annexLightAddress 2004
 
-#define ARTNR 10001
+#define ARTNR 11001
 
 decoder_conf_t EEMEM _CV = {
 #include "default_conf.h"
